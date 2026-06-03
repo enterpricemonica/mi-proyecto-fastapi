@@ -1,100 +1,199 @@
-<script>
-    const API_URL = "https://mi-proyecto-fastapi-production.up.railway.app/tareas";
+<!DOCTYPE html>
+<html lang="es">
 
-    // Load Tasks (GET)
-    async function loadTasks() {
-        try {
-            const response = await fetch(API_URL);
-            const tasks = await response.json();
-            const list = document.getElementById("task-list");
-            list.innerHTML = "";
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Gestor de Tareas Full-Stack</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            max-width: 500px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f4f7f6;
+        }
 
-            tasks.forEach(t => {
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #27ae60;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            background: white;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            border-left: 5px solid #3498db;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        /* CSS Dinámico: Estilo para cuando la tarea esté completada */
+        .completada {
+            border-left-color: #bdc3c7;
+            background-color: #eaeded;
+            color: #7f8c8d;
+            text-decoration: line-through;
+        }
+
+        .contenedor-izquierda {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .btn-borrar {
+            background-color: #e74c3c;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .btn-borrar:hover {
+            background-color: #c0392b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Lista de Tareas</h1>
+
+    <form id="tarea-form">
+        <input type="text" id="tarea-input" placeholder="¿Qué tienes que hacer hoy?" required>
+        <button type="submit">Agregar</button>
+    </form>
+
+    <ul id="lista-tareas"></ul>
+
+    <script>
+        const API_URL = "https://mi-proyecto-fastapi-production.up.railway.app/tareas";
+
+        // Cargar Tareas (GET)
+        async function cargarTareas() {
+            const respuesta = await fetch(API_URL);
+            const tareas = await respuesta.json();
+            const lista = document.getElementById("lista-tareas");
+            lista.innerHTML = "";
+
+            tareas.forEach(t => {
                 const li = document.createElement("li");
 
-                // Check completion status from Python backend
+                // Si la tarea viene como completada, le agregamos la clase CSS para tacharla
                 if (t.completada) {
-                    li.className = "completed";
+                    li.className = "completada";
                 }
 
-                // Container for checkbox and text
-                const leftContainer = document.createElement("div");
-                leftContainer.className = "left-container";
+                // Contenedor para el checkbox y el texto
+                const divIzquierda = document.createElement("div");
+                divIzquierda.className = "contenedor-izquierda";
 
-                // Create Checkbox
+                // Crear Checkbox
                 const checkbox = document.createElement("input");
                 checkbox.type = "checkbox";
                 checkbox.checked = t.completada;
-                checkbox.onchange = () => toggleTask(t.id);
+                // Al cambiar el checkbox disparas la petición PUT
+                checkbox.onchange = () => conmutarTarea(t.id);
 
                 const span = document.createElement("span");
-                span.textContent = t.tarea; // Matches 'tarea' field in Python
+                span.textContent = t.tarea;
 
-                leftContainer.appendChild(checkbox);
-                leftContainer.appendChild(span);
-                li.appendChild(leftContainer);
+                divIzquierda.appendChild(checkbox);
+                divIzquierda.appendChild(span);
+                li.appendChild(divIzquierda);
 
-                // Delete Button
-                const deleteButton = document.createElement("button");
-                deleteButton.textContent = "Delete";
-                deleteButton.className = "btn-delete";
-                deleteButton.onclick = () => deleteTask(t.id);
+                // Botón Borrar
+                const botonBorrar = document.createElement("button");
+                botonBorrar.textContent = "Eliminar";
+                botonBorrar.className = "btn-borrar";
+                botonBorrar.onclick = () => eliminarTarea(t.id);
 
-                li.appendChild(deleteButton);
-                list.appendChild(li);
+                li.appendChild(botonBorrar);
+                lista.appendChild(li);
             });
-        } catch (error) {
-            console.error("Error loading tasks:", error);
         }
-    }
 
-    // Save Tasks (POST)
-    document.getElementById("task-form").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const input = document.getElementById("task-input");
+        // Guardar Tareas (POST)
+        document.getElementById("tarea-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const input = document.getElementById("tarea-input");
 
-        if (!input.value.trim()) return;
+            // Validación básica: evitar mandar puros espacios vacíos
+            if (!input.value.trim()) return;
 
-        // Envia 'tarea' y 'completada' en minúsculas idéntico a tu Pydantic en Python
-        const newTask = { id: Date.now(), tarea: input.value.trim(), completada: false };
+            const nuevaTarea = { id: Date.now(), tarea: input.value.trim(), completada: false };
 
-        try {
             await fetch(API_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newTask)
+                body: JSON.stringify(nuevaTarea)
             });
 
             input.value = "";
-            loadTasks();
-        } catch (error) {
-            console.error("Error saving task:", error);
-        }
-    });
+            cargarTareas();
+        });
 
-    // Toggle completion status (PUT)
-    async function toggleTask(id) {
-        try {
+        // Alternar estado de completado (PUT)
+        async function conmutarTarea(id) {
             await fetch(`${API_URL}/${id}`, {
                 method: "PUT"
             });
-            loadTasks();
-        } catch (error) {
-            console.error("Error toggling task:", error);
+            cargarTareas();
         }
-    }
 
-    // Delete Task (DELETE)
-    async function deleteTask(id) {
-        try {
+        // Eliminar Tarea (DELETE)
+        async function eliminarTarea(id) {
             await fetch(`${API_URL}/${id}`, {
                 method: "DELETE"
             });
-            loadTasks();
-        } catch (error) {
-            console.error("Error deleting task:", error);
+            cargarTareas();
         }
-    }
 
-    loadTasks();
-</script>
+        cargarTareas();
+    </script>
+</body>
+
+</html>
